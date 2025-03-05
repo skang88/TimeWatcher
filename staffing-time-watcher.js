@@ -11,12 +11,18 @@ const connectionString = `Driver={Microsoft Access Driver (*.mdb, *.accdb)};Dbq=
 
 let lastTime = '000000';
 let intervalJob = null;
+let isWatching = false;
 
-async function sendSlackMessage(text) {
-  try {
-    await axios.post(webhookURL, { text });
-  } catch (err) {
-    console.error("⚠️ 슬랙 메시지 전송 오류:", err);
+async function sendSlackMessage(text, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await axios.post(webhookURL, { text });
+      console.log(`✅ Slack 메시지 전송 완료: ${text}`);
+      return;
+    } catch (err) {
+      console.error(`⚠️ Slack 메시지 전송 실패 (시도 ${i + 1}/${retries}):`, err);
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 2초 대기 후 재시도
+    }
   }
 }
 
@@ -43,11 +49,8 @@ async function checkDB() {
         console.log(`✅ 출근 감지: ${row.C_Name} ${row.C_Time}`);
         lastTime = row.C_Time; 
 
-        const message = {
-          text: `🚪 [출근 알림] ${row.C_Name}님 출근! 시간: ${row.C_Time}`
-        };
-
-        await sendSlackMessage(message.text);
+        const message = `🚪 [출근 알림] ${row.C_Name}님 출근! 시간: ${row.C_Time}`;
+        await sendSlackMessage(message);
       }
     }
     await connection.close();
@@ -57,12 +60,18 @@ async function checkDB() {
 }
 
 function startWatcher() {
+  if (isWatching) return;
+  isWatching = true;
+
   console.log("🚨 출근 감시 시작 (06:00~09:00)");
   sendSlackMessage("🚨 출근 감시 시작 (06:00~09:00)");
   intervalJob = setInterval(checkDB, 60000);
 }
 
 function stopWatcher() {
+  if (!isWatching) return;
+  isWatching = false;
+
   console.log("🛑 출근 감시 종료");
   sendSlackMessage("🛑 출근 감시 종료");
   clearInterval(intervalJob);
@@ -87,14 +96,27 @@ setInterval(() => {
   }
 }, 60000);
 
-// 앱이 종료될 때 슬랙 알림 전송
-process.on("SIGINT", async () => {
-  console.log("⚠️ 출근 감시 시스템이 종료됩니다...");
-  try {
-    await sendSlackMessage("⚠️ 출근 감시 시스템이 종료되었습니다.");
-  } catch (err) {
-    console.error("⚠️ 슬랙 메시지 전송 실패:", err);
-  }
-  process.exit();
-});
+// ✅ **PM2 종료 시 Slack 메시지가 확실히 전송되도록 수정**
+async function handleShutdown(signal) {
+  console.log(`🛑 ${signal} 감지됨, 종료 중...`);
 
+  try {
+    await sendSlackMessage("🔴 *출근 감시 시스템 종료됨!* PM2 프로세스가 종료됩니다.");
+    console.log("📢 Slack 메시지 전송 완료, 5초 대기 후 종료");
+  } catch (err) {
+    console.error("⚠️ Slack 메시지 전송 실패:", err);
+  }
+
+  // PM2가 너무 빨리 종료하지 않도록 5초 대기
+  await new Promise(resolve => setTimeout(resolve, 5000));
+  console.log("🚪 안전하게 종료됩니다.");
+  process.exit(0);
+}
+
+// PM2에서 프로세스 종료 시 감지
+process.on("SIGINT", handleShutdown);  // Ctrl + C
+process.on("SIGTERM", handleShutdown); // PM2 stop/restart/delete
+
+// 프로그램 시작 시 Slack 알림 전송
+console.log("🟢 출근 감시 시스템이 시작되었습니다...");
+sendSlackMessage("🟢 *출근 감시 시스템 시작됨!* PM2에서 앱이 실행되었습니다.");
