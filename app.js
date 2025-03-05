@@ -7,7 +7,7 @@ require("dotenv").config();
 
 const dbFilePath = "C:\\Program Files (x86)\\UNIS\\unis.mdb"; // MDB 파일 경로
 const webhookURL = process.env.SLACK_WEBHOOK_URL;
-const connectionString = `Driver={Microsoft Access Driver (*.mdb, *.accdb)};Dbq=${dbFilePath};Uid=unisuser;Pwd=unisamho;`;
+const connectionString = `Driver={Microsoft Access Driver (*.mdb, *.accdb)};Dbq=${dbFilePath};Uid=${process.env.DB_USERNAME};Pwd=${process.env.DB_PASSWORD};`;
 
 let lastTime = '000000';
 let intervalJob = null;
@@ -41,8 +41,6 @@ async function checkDB() {
 
         await axios.post(webhookURL, message);
       }
-    } else {
-      console.log(`⏳ ${today} 새로운 출근 데이터 없음...`);
     }
     await connection.close();
   } catch (err) {
@@ -51,7 +49,7 @@ async function checkDB() {
 }
 
 function startWatcher() {
-  console.log("🚨 출근 감시 시작 (07:00~09:00)");
+  console.log("🚨 출근 감시 시작 (06:00~09:00)");
   intervalJob = setInterval(checkDB, 1000);
 }
 
@@ -64,15 +62,15 @@ console.log("현재 시간: ", new Date().toLocaleString());
 
 const currentTime = new Date();
 const targetTime = new Date();
-targetTime.setHours(7, 0, 0, 0); // 오늘 7시로 설정
+targetTime.setHours(6, 0, 0, 0); // 오늘 7시로 설정
 
 if (currentTime > targetTime) {
   // 이미 지나간 시간이면 바로 실행
   startWatcher();
 }
 
-// 매일 07:00에 감시 시작
-schedule.scheduleJob("0 7 * * *", startWatcher);
+// 매일 06:00에 감시 시작
+schedule.scheduleJob("0 6 * * *", startWatcher);
 
 // 매일 09:00에 감시 종료
 schedule.scheduleJob("0 9 * * *", stopWatcher);
