@@ -50,10 +50,13 @@ async function checkDB() {
 
       for (let row of result) {
         console.log(`✅ ${attendanceType} 감지: ${row.C_Name} ${row.C_Time}`);
-
-        const message = `🚪 [${attendanceType} 알림] ${row.C_Name}님 ${attendanceType}! 시간: ${row.C_Time}`;
+      
+        // HHMMSS → HH:mm 변환
+        const formattedTime = moment(row.C_Time, "HHmmss").format("HH:mm");
+      
+        const message = `🚪 *[Attendance Notification]* 👤 ${row.C_Name} ⏰ Time: ${formattedTime}`;
         await sendSlackMessage(message);
-
+      
         // 가장 늦은 시간을 lastTime으로 업데이트
         if (row.C_Time > latestTime) {
           latestTime = row.C_Time;
