@@ -81,6 +81,7 @@ setInterval(() => {
   if (now.getHours() === 0 && now.getMinutes() === 0) {
     console.log("🔄 새로운 날이 시작됨, lastTime 초기화");
     lastTime = "000000";
+    console.log(`🕛 현재 시간: ${moment().format("YYYY-MM-DD HH:mm:ss")}`);
   }
 }, 10000);
 
